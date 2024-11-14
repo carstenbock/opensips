@@ -100,5 +100,8 @@ enum dict_avp_enc_type {
 #define enc_type2str(_t) "unsupported"
 #endif
 
+int dnr_entry(void);
+int dict_dcca_entry(void);
+int dict_dcca_3gpp_entry(void);
 
 #endif /* _APP_OPENSIPS_AVPS_H */

@@ -718,36 +718,39 @@ int dm_register_callbacks(void)
 	struct disp_when data;
 	struct dict_object *vendor_dict;
 
-	/* accounting */
-	{
-		memset(&data, 0, sizeof data);
+	if (dm_register_legacy_dict) {
 
-		/* Initialize the dictionary objects we use */
-		FD_CHECK_dict_search(DICT_APPLICATION, APPLICATION_BY_NAME,
-				"Diameter Base Accounting", &data.app);
+		/* accounting */
+		{
+			memset(&data, 0, sizeof data);
 
-		/* Register the dispatch callback */
-		FD_CHECK(fd_disp_register(dm_acc_reply,
-				DISP_HOW_APPID, &data, NULL, NULL));
+			/* Initialize the dictionary objects we use */
+			FD_CHECK_dict_search(DICT_APPLICATION, APPLICATION_BY_NAME,
+					"Diameter Base Accounting", &data.app);
 
-		/* Advertise support for the Diameter Base Accounting app */
-		FD_CHECK(fd_disp_app_support(data.app, NULL, 0, 1 ));
-	}
+			/* Register the dispatch callback */
+			FD_CHECK(fd_disp_register(dm_acc_reply,
+					DISP_HOW_APPID, &data, NULL, NULL));
 
-	/* auth */
-	{
-		memset(&data, 0, sizeof data);
+			/* Advertise support for the Diameter Base Accounting app */
+			FD_CHECK(fd_disp_app_support(data.app, NULL, 0, 1 ));
+		}
 
-		/* Initialize the dictionary objects we use */
-		FD_CHECK_dict_search(DICT_APPLICATION, APPLICATION_BY_NAME,
-			"Diameter Session Initiation Protocol (SIP) Application", &data.app);
+		/* auth */
+		{
+			memset(&data, 0, sizeof data);
 
-		/* Register the dispatch callback */
-		FD_CHECK(fd_disp_register(dm_auth_reply,
-				DISP_HOW_APPID, &data, NULL, NULL));
+			/* Initialize the dictionary objects we use */
+			FD_CHECK_dict_search(DICT_APPLICATION, APPLICATION_BY_NAME,
+				"Diameter Session Initiation Protocol (SIP) Application", &data.app);
 
-		/* Advertise support for the Diameter SIP Application app */
-		FD_CHECK(fd_disp_app_support(data.app, NULL, 0, 1 ));
+			/* Register the dispatch callback */
+			FD_CHECK(fd_disp_register(dm_auth_reply,
+					DISP_HOW_APPID, &data, NULL, NULL));
+
+			/* Advertise support for the Diameter SIP Application app */
+			FD_CHECK(fd_disp_app_support(data.app, NULL, 0, 1 ));
+		}
 	}
 
 	/* custom commands */
@@ -1479,15 +1482,27 @@ int dm_init_minimal(void)
 		LM_ERR("oom\n");
 		return -1;
 	}
-
 	LM_INFO("initializing the Diameter object dictionary...\n");
 
 	fd_g_config = &g_conf;
 
 	FD_CHECK(fd_conf_init());
 	FD_CHECK(fd_dict_base_protocol(fd_g_config->cnf_dict));
-	FD_CHECK(dm_register_osips_avps());
-	FD_CHECK(dm_init_sip_application());
+
+	if (dm_register_legacy_dict) {
+		FD_CHECK(dm_register_osips_avps());
+		FD_CHECK(dm_init_sip_application());		
+	} else {
+		FD_CHECK(dnr_entry());
+		FD_CHECK(dict_dcca_entry());
+		FD_CHECK(dict_dcca_3gpp_entry());
+
+		dm_enc_add(10415, 609, AVP_ENC_TYPE_HEX);
+		dm_enc_add(10415, 610, AVP_ENC_TYPE_HEX);
+
+		dm_enc_add(10415, 625, AVP_ENC_TYPE_HEX);
+		dm_enc_add(10415, 626, AVP_ENC_TYPE_HEX);
+	}
 
 	min_init_done = 1;
 	return 0;
@@ -1577,11 +1592,6 @@ aaa_conn *dm_init_prot(str *aaa_url)
 
 	if (dm_init_minimal() != 0) {
 		LM_ERR("failed to init freeDiameter global dictionary\n");
-		return NULL;
-	}
-
-	if (parse_extra_avps(extra_avps_file) != 0) {
-		LM_ERR("failed to load the 'extra-avps-file'\n");
 		return NULL;
 	}
 
@@ -1820,8 +1830,12 @@ int dm_build_avps(struct list_head *out_avps, cJSON *array)
 	str st;
 	struct dict_avp_enc_f *func;
 	int ret;
+	int timestamp = 0;
+	time_t ts = 0;
+	unsigned char bytes[4]; /* per RFC 3588 § 4.3 */	
 
 	for (_avp = array; _avp; _avp = _avp->next) {
+		timestamp = 0;
 		if (_avp->type != cJSON_Object) {
 			LM_ERR("bad JSON type in Grouped AVP: sub-AVPs must be Objects\n");
 			return -1;
@@ -1853,6 +1867,11 @@ int dm_build_avps(struct list_head *out_avps, cJSON *array)
 			FD_CHECK(fd_dict_getval(obj, &dm_avp));
 
 			name = avp->string;
+			LM_DBG("AVP:: Checking for Timestamp: %s\n", avp->string);
+			if (str_strcasestr(_str(name), _str("Timestamp"))) {
+				LM_DBG("AVP:: %s containts \"Timestamp\"!\n", avp->string);
+				timestamp = 1;
+			}			
 			code = dm_avp.avp_code;
 			vendor = dm_avp.avp_vendor;
 		}
@@ -1889,10 +1908,30 @@ int dm_build_avps(struct list_head *out_avps, cJSON *array)
 			}
 		} else if (avp->type & cJSON_Number) {
 			LM_DBG("dbg::: AVP %d (name: '%s', int-val: %d)\n", code, name, avp->valueint);
-			if (_dm_avp_add(NULL, out_avps, &my_avp, &avp->valuedouble,
-							dm_avp_inttype[dm_avp.avp_basetype], 0) != 0) {
-				LM_ERR("failed to add AVP %d, aborting request\n", code);
-				goto error;
+			if (timestamp) {
+				ts = (time_t)avp->valueint;
+				/* ... if no ts found, just use current time */
+				if (!ts)
+					ts = time(NULL);
+				LM_DBG("final Event-Timestamp (UNIX ts): %lu\n", ts);
+
+				ts += 2208988800UL; /* convert to Jan 1900 00:00 UTC epoch time */
+				bytes[0] = (ts >> 24) & 0xFF;
+				bytes[1] = (ts >> 16) & 0xFF;
+				bytes[2] = (ts >> 8) & 0xFF;
+				bytes[3] = ts & 0xFF;
+
+				if (_dm_avp_add(NULL, out_avps, &my_avp, bytes,
+						4, 0) != 0) {
+					LM_ERR("failed to add AVP %d, aborting request\n", code);
+					goto error;
+				}
+			} else {			
+				if (_dm_avp_add(NULL, out_avps, &my_avp, &avp->valuedouble,
+								dm_avp_inttype[dm_avp.avp_basetype], 0) != 0) {
+					LM_ERR("failed to add AVP %d, aborting request\n", code);
+					goto error;
+				}
 			}
 		} else if (avp->type & cJSON_Array) {
 			LM_DBG("dbg::: AVP %d (name: '%s', grouped)\n", code, name);

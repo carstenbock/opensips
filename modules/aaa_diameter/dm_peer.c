@@ -111,6 +111,11 @@ static int dm_send_auth(struct dm_message *msg)
 	struct list_head *it;
 	struct dict_object *mar; /* Multimedia-Auth-Request (MAR, code: 286) */
 
+	if (dm_register_legacy_dict == 0) {
+		LM_ERR("legacy dictionary not registered\n");
+		return -1;
+	}
+
 	FD_CHECK(fd_dict_search(fd_g_config->cnf_dict, DICT_COMMAND, CMD_BY_NAME,
 	      "Multimedia-Auth-Request", &mar, ENOENT));
 
@@ -254,6 +259,11 @@ static int dm_send_acct(struct dm_message *msg)
 	struct list_head *it;
 	union avp_value val;
 	struct dict_object *acr; /* Accounting-Request (ACR, code: 271) */
+
+	if (dm_register_legacy_dict == 0) {
+		LM_ERR("legacy dictionary not registered\n");
+		return -1;
+	}
 
 	FD_CHECK(fd_dict_search(fd_g_config->cnf_dict, DICT_COMMAND, CMD_BY_NAME,
 	      "Accounting-Request", &acr, ENOENT));
@@ -630,9 +640,28 @@ void dm_peer_loop(int _)
 		return;
 	}
 
-	__FD_CHECK(dm_register_osips_avps(), 0, );
-	__FD_CHECK(dm_init_sip_application(), 0, );
-	__FD_CHECK(dm_prepare_globals(), 0, );
+	LM_ERR("Extra AVP's file: %s\n", extra_avps_file);
+	if (parse_extra_avps(extra_avps_file) != 0) {
+		LM_ERR("failed to load the 'extra-avps-file'\n");
+		return NULL;
+	}
+
+	if (dm_register_legacy_dict) {
+		__FD_CHECK(dm_register_osips_avps(), 0, );
+		__FD_CHECK(dm_init_sip_application(), 0, );		
+		__FD_CHECK(dm_prepare_globals(), 0, );
+	} else {
+		__FD_CHECK(dnr_entry(), 0, );
+		__FD_CHECK(dict_dcca_entry(), 0, );
+		__FD_CHECK(dict_dcca_3gpp_entry(), 0, );
+
+		dm_enc_add(10415, 609, AVP_ENC_TYPE_HEX);
+		dm_enc_add(10415, 610, AVP_ENC_TYPE_HEX);
+
+		dm_enc_add(10415, 625, AVP_ENC_TYPE_HEX);
+		dm_enc_add(10415, 626, AVP_ENC_TYPE_HEX);
+	}
+	
 	__FD_CHECK(parse_extra_avps(extra_avps_file), 0, );
 
 	__FD_CHECK(dm_register_callbacks(), 0, );

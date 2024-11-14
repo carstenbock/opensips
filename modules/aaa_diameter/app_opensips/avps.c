@@ -73,6 +73,7 @@ struct dm_avp_def {
 	int name_len;
 	enum rule_position pos;
 	int max_repeats;
+	int vendor_id;
 };
 
 static int dm_register_radius_avps(void)
@@ -542,9 +543,28 @@ static int parse_avp_def(struct dm_avp_def *avps, int *avp_count, char *line, in
 		goto error;
 	}
 
-	LOG_DBG("AVP def: %.*s | %d | %d\n", avps[*avp_count].name_len,
+	avps[*avp_count].vendor_id = -1;
+	while (*p && !isspace(*p) && (*p != '|')) { p++; len--; }
+	if (*p) {
+		while (isspace(*p)) { p++; len--; }
+		if (*p) {
+			if (*p != '|')
+				goto error;
+
+			p++; len--;
+			while (isspace(*p)) { p++; len--; }
+
+			avps[*avp_count].vendor_id = (int)strtol(p, NULL, 10);
+			if (avps[*avp_count].vendor_id < -1) {
+				LOG_ERROR("bad vendor_id: '... | %s'\n", p);
+				goto error;
+			}		
+		}
+	}
+
+	LOG_DBG("AVP def: %.*s | %d | %d | Vendor %d\n", avps[*avp_count].name_len,
 	        avps[*avp_count].name, avps[*avp_count].pos,
-	        avps[*avp_count].max_repeats);
+	        avps[*avp_count].max_repeats, avps[*avp_count].vendor_id);
 
 	(*avp_count)++;
 	return 0;
@@ -561,7 +581,7 @@ int parse_attr_def(char *line, FILE *fp)
 	unsigned int vendor_id = -1;
 	size_t buflen = strlen(line);
 	int i, len = buflen, attr_len = strlen("ATTRIBUTE"), name_len, avp_code;
-	char *name, *nt_name, *newp, *p = line, *end = p + len;
+	char *name = NULL, *nt_name = NULL, *newp = NULL, *p = line, *end = p + len;
 	enum dict_avp_basetype avp_type;
 	enum dict_avp_enc_type enc_type = AVP_ENC_TYPE_NONE;
 
@@ -975,8 +995,14 @@ define_req:
 		struct dict_rule_data data = {NULL, avps[i].pos,
 			(avps[i].pos == RULE_FIXED_HEAD), -1, avps[i].max_repeats};
 
-		FD_CHECK(fd_dict_search(fd_g_config->cnf_dict,
-			DICT_AVP, AVP_BY_NAME_ALL_VENDORS, avps[i].name, &data.rule_avp, 0));
+		if (avps[i].vendor_id == -1) {
+			FD_CHECK(fd_dict_search(fd_g_config->cnf_dict,
+				DICT_AVP, AVP_BY_NAME_ALL_VENDORS, avps[i].name, &data.rule_avp, 0));
+		} else {
+			struct dict_avp_request query = {avps[i].vendor_id, 0, avps[i].name};
+			FD_CHECK(fd_dict_search(fd_g_config->cnf_dict,
+				DICT_AVP, AVP_BY_NAME_AND_VENDOR, (void*)&query, &data.rule_avp, 0));
+		}
 
 		if (!data.rule_avp) {
 			LOG_ERROR("failed to locate AVP: %s\n", avps[i].name);

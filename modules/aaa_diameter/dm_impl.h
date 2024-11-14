@@ -150,6 +150,7 @@ extern char *extra_avps_file;
 extern struct _dm_dict dm_dict;
 extern int dm_answer_timeout;
 extern int dm_server_autoreply_error;
+extern int dm_register_legacy_dict;
 int dm_remove_unreplied_req(struct msg *req);
 
 int freeDiameter_init(void);

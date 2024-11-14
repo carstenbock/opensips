@@ -47,9 +47,10 @@ static int dm_aaa_bind_api(aaa_prot *api);
 static int dm_bind_api(diameter_api *api);
 
 int fd_log_level = FD_LOG_NOTICE;
+int dm_register_legacy_dict = 1;
 str dm_realm = str_init("diameter.test");
 str dm_peer_identity = str_init("server"); /* a.k.a. server.diameter.test */
-static str dm_aaa_url = {NULL, 0};
+static str dm_aaa_url = str_init("");
 int dm_answer_timeout = 2000; /* ms */
 int dm_server_autoreply_error; /* ensures we always reply with *something* */
 
@@ -88,6 +89,7 @@ static const proc_export_t procs[] = {
 static const param_export_t params[] =
 {
 	{ "fd_log_level",    INT_PARAM, &fd_log_level     },
+	{ "register_legacy_dict", INT_PARAM, &dm_register_legacy_dict },
 	{ "realm",           STR_PARAM, &dm_realm.s       },
 	{ "peer_identity",   STR_PARAM, &dm_peer_identity.s  },
 	{ "aaa_url",         STR_PARAM, &dm_aaa_url.s        },
@@ -145,7 +147,7 @@ int mod_init(void)
 		LM_ERR("bad modparam configuration\n");
 		return -1;
 	}
-
+	
 	/* perform only a minimal amount of library initialization, just so modules
 	 * can look up Diameter AVPs through the API, but without neither changing
 	 * the internal library state nor forking any threads yet! */
