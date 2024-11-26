@@ -449,7 +449,7 @@ deb:
 	rm -rf debian
 	# dpkg-source cannot use links for debian source
 	cp -r packaging/debian debian
-	dpkg-buildpackage \
+	dpkg-buildpackage -b \
 		-I.git -I.gitignore \
 		-I*.swp -I*~ \
 		-i\\.git\|debian\|^\\.\\w+\\.swp\|lex\\.yy\\.c\|cfg\\.tab\\.\(c\|h\)\|\\w+\\.patch \
