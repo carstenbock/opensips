@@ -1484,6 +1484,7 @@ int dm_init_minimal(void)
 	}
 	LM_INFO("initializing the Diameter object dictionary...\n");
 
+	memset(&g_conf, 0, sizeof(struct fd_config));
 	fd_g_config = &g_conf;
 
 	FD_CHECK(fd_conf_init());
