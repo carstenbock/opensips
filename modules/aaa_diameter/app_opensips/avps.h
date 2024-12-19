@@ -53,11 +53,34 @@
 #define FD_CHECK(__call__) _FD_CHECK((__call__), 0)
 #endif
 
+#ifndef FD_CHECK_TRY
+#define __FD_CHECK_TRY(__call__, __retok__, __retval__) \
+	do { \
+		int __ret__; \
+		__ret__ = (__call__); \
+		if (__ret__ > 0) \
+			__ret__ = -__ret__; \
+		if (__ret__ != (__retok__)) { \
+			fd_log_debug("error in %s: %d\n", #__call__, __ret__); \
+		} \
+	} while (0)
+#define _FD_CHECK_TRY(__call__, __retok__) \
+	__FD_CHECK_TRY((__call__), (__retok__), __ret__)
+#define FD_CHECK_TRY(__call__) _FD_CHECK_TRY((__call__), 0)
+#endif
+
 #ifndef FD_CHECK_dict_new
 #define FD_CHECK_dict_new(type, data, parent, ref) \
 	FD_CHECK(fd_dict_new(fd_g_config->cnf_dict, (type), \
 				(data), (parent), (ref)))
 #endif
+
+#ifndef TRY_FD_CHECK_dict_new
+#define TRY_FD_CHECK_dict_new(type, data, parent, ref) \
+	FD_CHECK_TRY(fd_dict_new(fd_g_config->cnf_dict, (type), \
+				(data), (parent), (ref)))
+#endif
+
 
 #ifndef FD_CHECK_dict_search
 #define FD_CHECK_dict_search(type, criteria, what, result) \
@@ -90,6 +113,13 @@ enum dict_avp_enc_type {
 		("unknown?? "#t))
 
 int dm_enc_add(int vendor, int code, enum dict_avp_enc_type enc);
+
+int init_avp_list(void);
+int add_avp_list(char *name, unsigned int code, unsigned int vendor, enum dict_avp_basetype avp_type);
+int lookup_avp_name(char *name, unsigned int *code, unsigned int *vendor, enum dict_avp_basetype *avp_type);
+int lookup_avp_code(unsigned int code, unsigned int * vendor, char **name, enum dict_avp_basetype *avp_type);
+void free_avp_list(void);
+
 #else
 enum dict_avp_enc_type {
 	AVP_ENC_TYPE_IP = 0,
@@ -99,9 +129,5 @@ enum dict_avp_enc_type {
 #define dm_enc_add(_v, _c, _e) 0
 #define enc_type2str(_t) "unsupported"
 #endif
-
-int dnr_entry(void);
-int dict_dcca_entry(void);
-int dict_dcca_3gpp_entry(void);
 
 #endif /* _APP_OPENSIPS_AVPS_H */

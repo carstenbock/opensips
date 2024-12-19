@@ -1462,12 +1462,6 @@ int dm_register_osips_avps(void)
 
 int dm_init_minimal(void)
 {
-	/* these functions are not immediately available via the
-	 * libfdcore .h files, but who said we cannot use them? >:) */
-	extern int fd_conf_init(void);
-	extern int fd_dict_base_protocol(struct dictionary * dict);
-
-	static struct fd_config g_conf;
 	static char min_init_done;
 
 	if (min_init_done)
@@ -1482,29 +1476,6 @@ int dm_init_minimal(void)
 		LM_ERR("oom\n");
 		return -1;
 	}
-	LM_INFO("initializing the Diameter object dictionary...\n");
-
-	memset(&g_conf, 0, sizeof(struct fd_config));
-	fd_g_config = &g_conf;
-
-	FD_CHECK(fd_conf_init());
-	FD_CHECK(fd_dict_base_protocol(fd_g_config->cnf_dict));
-
-	if (dm_register_legacy_dict) {
-		FD_CHECK(dm_register_osips_avps());
-		FD_CHECK(dm_init_sip_application());		
-	} else {
-		FD_CHECK(dnr_entry());
-		FD_CHECK(dict_dcca_entry());
-		FD_CHECK(dict_dcca_3gpp_entry());
-
-		dm_enc_add(10415, 609, AVP_ENC_TYPE_HEX);
-		dm_enc_add(10415, 610, AVP_ENC_TYPE_HEX);
-
-		dm_enc_add(10415, 625, AVP_ENC_TYPE_HEX);
-		dm_enc_add(10415, 626, AVP_ENC_TYPE_HEX);
-	}
-
 	min_init_done = 1;
 	return 0;
 }
@@ -1602,8 +1573,6 @@ aaa_conn *dm_init_prot(str *aaa_url)
 
 int freeDiameter_init(void)
 {
-	extern int fd_conf_deinit(void);
-
 	extern int fd_log_level;
 
 	if (fd_log_level < FD_LOG_ANNOYING)
@@ -1612,9 +1581,6 @@ int freeDiameter_init(void)
 	if (fd_log_level > FD_LOG_FATAL)
 		fd_log_level = FD_LOG_FATAL;
 
-	/* free the "minimal initialization" we've done at mod_init() */
-	FD_CHECK(fd_conf_deinit());
-
 	/* ... and now fully init the entire freeDiameter library
 	 *	(parse freeDiameter-client.conf file, fork all threads, etc.) */
 	FD_CHECK(fd_core_initialize());
@@ -1622,6 +1588,8 @@ int freeDiameter_init(void)
 	fd_g_debug_lvl = fd_log_level;
 
 	FD_CHECK(fd_core_parseconf(dm_conf_filename));
+
+	fd_g_config->cnf_dict = NULL;
 
 	return 0;
 }
@@ -1824,12 +1792,11 @@ int dm_avp_add(aaa_conn *_, aaa_message *msg, aaa_map *avp, void *val,
 int dm_build_avps(struct list_head *out_avps, cJSON *array)
 {
 	cJSON *_avp, *avp;
-	struct dict_avp_data dm_avp;
-	struct dict_object *obj;
 	char *name;
 	unsigned int code, vendor;
 	str st;
 	struct dict_avp_enc_f *func;
+	enum dict_avp_basetype avp_type;
 	int ret;
 	int timestamp = 0;
 	time_t ts = 0;
@@ -1854,27 +1821,24 @@ int dm_build_avps(struct list_head *out_avps, cJSON *array)
 		if (str2int(&st, &code) == 0) {
 
 			LM_DBG("AVP:: searching AVP by int: %d\n", code);
-			FD_CHECK(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_CODE,
-				&code, &obj, ENOENT));
-			FD_CHECK(fd_dict_getval(obj, &dm_avp));
-
-			name = dm_avp.avp_name;
-			vendor = dm_avp.avp_vendor;
+			if (lookup_avp_code(code, &vendor, &name, &avp_type) != 0) {
+				LM_ERR("AVP:: AVP code %d not found\n", code);
+				goto error;
+			}
 		} else {
-			LM_DBG("AVP:: searching AVP by string: %s\n", avp->string);
+			LM_ERR("AVP:: searching AVP by string: %s\n", avp->string);
 
-			FD_CHECK(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME_ALL_VENDORS,
-				avp->string, &obj, ENOENT));
-			FD_CHECK(fd_dict_getval(obj, &dm_avp));
+			if (lookup_avp_name(avp->string, &code, &vendor, &avp_type) != 0) {
+				LM_ERR("AVP:: AVP name %s not found\n", avp->string);
+				goto error;
+			}
 
 			name = avp->string;
-			LM_DBG("AVP:: Checking for Timestamp: %s\n", avp->string);
+			LM_ERR("AVP:: Checking for Timestamp: %s\n", avp->string);
 			if (str_strcasestr(_str(name), _str("Timestamp"))) {
 				LM_DBG("AVP:: %s containts \"Timestamp\"!\n", avp->string);
 				timestamp = 1;
 			}			
-			code = dm_avp.avp_code;
-			vendor = dm_avp.avp_vendor;
 		}
 
 		aaa_map my_avp = {.name = name};
@@ -1882,7 +1846,7 @@ int dm_build_avps(struct list_head *out_avps, cJSON *array)
 
 		if (func && func->enc_func) {
 			LM_DBG("dbg::: AVP %d (name: '%s', encoded)\n", code, name);
-			ret = func->enc_func(_avp->child, &dm_avp, vendor, &st);
+			ret = func->enc_func(_avp->child, NULL, vendor, &st);
 			if (ret < 0) {
 				LM_ERR("could not encode %d/%d\n", code, vendor);
 				goto error;
@@ -1910,11 +1874,12 @@ int dm_build_avps(struct list_head *out_avps, cJSON *array)
 		} else if (avp->type & cJSON_Number) {
 			LM_DBG("dbg::: AVP %d (name: '%s', int-val: %d)\n", code, name, avp->valueint);
 			if (timestamp) {
+				LM_DBG("Timestamp AVP found, converting to UNIX ts\n");
 				ts = (time_t)avp->valueint;
 				/* ... if no ts found, just use current time */
 				if (!ts)
 					ts = time(NULL);
-				LM_DBG("final Event-Timestamp (UNIX ts): %lu\n", ts);
+				LM_DBG("final Timestamp (UNIX ts): %lu\n", ts);
 
 				ts += 2208988800UL; /* convert to Jan 1900 00:00 UTC epoch time */
 				bytes[0] = (ts >> 24) & 0xFF;
@@ -1929,7 +1894,7 @@ int dm_build_avps(struct list_head *out_avps, cJSON *array)
 				}
 			} else {			
 				if (_dm_avp_add(NULL, out_avps, &my_avp, &avp->valuedouble,
-								dm_avp_inttype[dm_avp.avp_basetype], 0) != 0) {
+								dm_avp_inttype[avp_type], 0) != 0) {
 					LM_ERR("failed to add AVP %d, aborting request\n", code);
 					goto error;
 				}

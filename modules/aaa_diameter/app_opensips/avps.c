@@ -48,8 +48,10 @@ extern int dm_store_enumval(const char *name, int value);
 #endif
 
 #ifdef PKG_MALLOC
+#include "../../../ut.h"
+#include "../../../mem/shm_mem.h"
 #include "../../../dprint.h"
-#define LOG_DBG LM_DBG
+#define LOG_DBG LM_ERR
 #define LOG_ERROR LM_ERR
 #else
 #define LOG_DBG fd_log_debug
@@ -475,6 +477,8 @@ int register_osips_avps(void)
 static int parse_avp_def(struct dm_avp_def *avps, int *avp_count, char *line, int len)
 {
 	char *p = line, *avp_name;
+	struct dict_avp_data dm_avp;	
+	struct dict_rule_data data;
 
 	avp_name = p;
 	while (*p && !isspace(*p)) { p++; len--; }
@@ -565,6 +569,18 @@ static int parse_avp_def(struct dm_avp_def *avps, int *avp_count, char *line, in
 	LOG_DBG("AVP def: %.*s | %d | %d | Vendor %d\n", avps[*avp_count].name_len,
 	        avps[*avp_count].name, avps[*avp_count].pos,
 	        avps[*avp_count].max_repeats, avps[*avp_count].vendor_id);
+
+	if (avps[*avp_count].vendor_id == -1) {
+		FD_CHECK(fd_dict_search(fd_g_config->cnf_dict,
+			DICT_AVP, AVP_BY_NAME_ALL_VENDORS, avps[*avp_count].name, &data.rule_avp, 0));
+	} else {
+		struct dict_avp_request query = {avps[*avp_count].vendor_id, 0, avps[*avp_count].name};
+		FD_CHECK(fd_dict_search(fd_g_config->cnf_dict,
+			DICT_AVP, AVP_BY_NAME_AND_VENDOR, (void*)&query, &data.rule_avp, 0));
+	}
+	FD_CHECK(fd_dict_getval(data.rule_avp, &dm_avp));
+
+	add_avp_list(dm_avp.avp_name, dm_avp.avp_code, dm_avp.avp_vendor, dm_avp.avp_basetype);
 
 	(*avp_count)++;
 	return 0;
@@ -725,7 +741,8 @@ create_avp:;
 		avp_type 	/* base type of data */
 	};
 
-	FD_CHECK_dict_new(DICT_AVP, &data, parent, pref);
+	TRY_FD_CHECK_dict_new(DICT_AVP, &data, parent, pref);
+	add_avp_list(nt_name, avp_code, (vendor_id != -1?vendor_id:0), avp_type);
 
 	for (i = 0; i < avp_count; i++) {
 		struct dict_rule_data data = {NULL, avps[i].pos,
@@ -739,7 +756,7 @@ create_avp:;
 			return -1;
 		}
 
-		FD_CHECK_dict_new(DICT_RULE, &data, avp_ref, NULL);
+		TRY_FD_CHECK_dict_new(DICT_RULE, &data, avp_ref, NULL);
 	}
 
 	LOG_DBG("registered custom AVP (%s, code %d, type %s, enc %s, sub-avps: %d, vendor: %d)\n",
@@ -1008,8 +1025,7 @@ define_req:
 			LOG_ERROR("failed to locate AVP: %s\n", avps[i].name);
 			return -1;
 		}
-
-		FD_CHECK_dict_new(DICT_RULE, &data, cmd, NULL);
+		TRY_FD_CHECK_dict_new(DICT_RULE, &data, cmd, NULL);
 	}
 
 	{
@@ -1028,7 +1044,7 @@ define_req:
 				return -1;
 			}
 
-			FD_CHECK_dict_new(DICT_RULE, &data, cmd, NULL);
+			TRY_FD_CHECK_dict_new(DICT_RULE, &data, cmd, NULL);
 		}
 	}
 
@@ -1048,7 +1064,7 @@ define_req:
 				return -1;
 			}
 
-			FD_CHECK_dict_new(DICT_RULE, &data, cmd, NULL);
+			TRY_FD_CHECK_dict_new(DICT_RULE, &data, cmd, NULL);
 		}
 	}
 
@@ -1138,3 +1154,91 @@ out:
 
 	return ret;
 }
+#ifdef PKG_MALLOC
+struct avp_defs {
+	str name;
+	unsigned int id;
+	unsigned int vendor;
+	enum dict_avp_basetype avp_type;
+	struct avp_defs * next;
+};
+static struct avp_defs ** avp_defs = NULL;
+
+int init_avp_list(void) {
+	avp_defs = shm_malloc(sizeof(void*));
+	if (!avp_defs) {
+		LM_ERR("shm_alloc failed\n");
+		return -1;
+	}
+	*avp_defs = NULL;
+	return 0;
+}
+
+int add_avp_list(char *name, unsigned int code, unsigned int vendor, enum dict_avp_basetype avp_type) {
+	if (lookup_avp_name(name, &code, &vendor, &avp_type) == 0) {
+		LM_ERR("AVP %s %d %d %d already exists\n", name, code, vendor, avp_type);
+		return -1;
+	}
+
+	struct avp_defs * new_avp = shm_malloc(sizeof(struct avp_defs));
+	if (!new_avp) {
+		LM_ERR("shm_alloc failed\n");
+		return -1;
+	}
+	LM_ERR("Adding AVP %s %d %d %d\n", name, code, vendor, avp_type);
+	new_avp->name.len = strlen(name) + 1;
+	new_avp->name.s = shm_malloc(new_avp->name.len);
+	if (!new_avp->name.s) {
+		LM_ERR("shm_alloc failed\n");
+		return -1;
+	}
+	memset(new_avp->name.s, 0, new_avp->name.len);
+	new_avp->name.len = strlen(name);
+	memcpy(new_avp->name.s, name, new_avp->name.len);
+	new_avp->id = code;
+	new_avp->vendor = vendor;
+	new_avp->next = *avp_defs;
+	new_avp->avp_type = avp_type;
+	*avp_defs = new_avp;
+	return 0;
+}
+
+int lookup_avp_name(char *name, unsigned int *code, unsigned int *vendor, enum dict_avp_basetype *avp_type) {
+	struct avp_defs * avp = *avp_defs;
+	unsigned int name_len = strlen(name);
+	while (avp) {
+		if ((avp->name.len == name_len) && strncmp(avp->name.s, name, name_len) == 0) {
+			*code = avp->id;
+			*vendor = avp->vendor;
+			*avp_type = avp->avp_type;
+			return 0;
+		}
+		avp = avp->next;
+	}
+	return -1;
+}
+int lookup_avp_code(unsigned int code, unsigned int * vendor, char **name, enum dict_avp_basetype *avp_type) {
+	struct avp_defs * avp = *avp_defs;
+	while (avp) {
+		if (avp->id == code) {
+			*vendor = avp->vendor;
+			*name = avp->name.s;
+			*avp_type = avp->avp_type;
+			return 0;
+		}
+		avp = avp->next;
+	}
+	return -1;
+}
+void free_avp_list(void) {
+	struct avp_defs * avp = *avp_defs;
+	while (avp) {
+		struct avp_defs * next = avp->next;
+		shm_free(avp->name.s);
+		shm_free(avp);
+		avp = next;
+	}
+	shm_free(avp_defs);
+	avp_defs = NULL;
+}
+#endif

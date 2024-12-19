@@ -138,6 +138,11 @@ static int mod_init(void)
 	}
 
 	dm_aaa_url.len = strlen(dm_aaa_url.s);
+	if (!aka_av_dm_realm.s) {
+		LM_ERR("Diameter Realm not provided!\n");
+		return -1;
+	}
+
 	aka_av_dm_realm.len = strlen(aka_av_dm_realm.s);
 	aka_av_server_uri.len = strlen(aka_av_server_uri.s);
 
@@ -147,10 +152,6 @@ static int mod_init(void)
 	dm_conn = dm_api.init(&dm_aaa_url);
 	if (!dm_conn) {
 		LM_ERR("Diameter protocol initialization failure\n");
-		return -1;
-	}
-	if (!dm_api.find_cmd(dm_conn, AKA_AV_DM_MAR_CODE)) {
-		LM_ERR("could not find Multimedia-Auth-Request command!\n");
 		return -1;
 	}
 
@@ -378,13 +379,15 @@ static int aka_av_diameter_handle_reply(cJSON *rpl, str *impu, str *impi)
 			LM_ERR("no item authorize for item %d/%d\n", arr[ret].index, ret);
 			continue;
 		}
-		if (!arr[ret].confidentiality.s) {
-			LM_ERR("no item confidentiality for item %d/%d\n", arr[ret].index, ret);
-			continue;
-		}
-		if (!arr[ret].integrity.s) {
-			LM_ERR("no item itegrity for item %d/%d\n", arr[ret].index, ret);
-			continue;
+		if (ALG_IS_AKAv1(arr[ret].alg) || ALG_IS_AKAv2(arr[ret].alg)) {
+			if (!arr[ret].confidentiality.s) {
+				LM_ERR("no item confidentiality for item %d/%d\n", arr[ret].index, ret);
+				continue;
+			}
+			if (!arr[ret].integrity.s) {
+				LM_ERR("no item itegrity for item %d/%d\n", arr[ret].index, ret);
+				continue;
+			}
 		}
 		ret++;
 	}
@@ -519,8 +522,8 @@ static int aka_av_diameter_fetch(str *realm, str *impu, str *impi,
 	cJSON_ADD_OBJ(req, AKA_AV_DM_SESSION, cJSON_CreateString(sess));
 	sess_obj = cJSON_GetArrayItem(req, 0)->child; /* the session is the first */
 	cJSON_ADD_OBJ(req, AKA_AV_DM_ORIGIN_HOST, cJSON_CreateString(aka_av_dm_realm.s));
-	cJSON_ADD_OBJ(req, AKA_AV_DM_ORIGIN_REALM, cJSON_CreateStr(realm->s, realm->len));
-	cJSON_ADD_OBJ(req, AKA_AV_DM_DST_REALM, cJSON_CreateStr(realm->s, realm->len));
+	cJSON_ADD_OBJ(req, AKA_AV_DM_ORIGIN_REALM, cJSON_CreateStr(aka_av_dm_realm.s, aka_av_dm_realm.len));
+	cJSON_ADD_OBJ(req, AKA_AV_DM_DST_REALM, cJSON_CreateStr(aka_av_dm_realm.s, aka_av_dm_realm.len));
 
 	tmp = cJSON_CreateArray();
 	if (!tmp) {

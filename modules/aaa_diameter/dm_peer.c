@@ -494,7 +494,7 @@ static int dm_send_custom_req(struct dm_message *msg)
 		/* Transaction-Id */
 		struct timeval now;
 		char tid[16 + 1];
-		LM_DBG("No Session-Id in Answer, forcing Transaction-Id\n");
+		LM_DBG("No Session-Id in Request, forcing Transaction-Id\n");
 
 		FD_CHECK(fd_msg_avp_new(dm_dict.Transaction_Id, 0, &avp));
 
@@ -590,40 +590,102 @@ static inline int dm_peer_send_msg(struct dm_message *msg)
 static int dm_prepare_globals(void)
 {
 	memset(&dm_dict, 0, sizeof dm_dict);
+	struct dict_avp_data dm_avp;	
 
 	FD_CHECK(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME,
 	      "Destination-Realm", &dm_dict.Destination_Realm, ENOENT));
+	if (dm_dict.Destination_Realm) {
+		FD_CHECK(fd_dict_getval(dm_dict.Destination_Realm, &dm_avp));
+		add_avp_list(dm_avp.avp_name, dm_avp.avp_code, dm_avp.avp_vendor, dm_avp.avp_basetype);
+	}
 	FD_CHECK(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME,
 	      "Result-Code", &dm_dict.Result_Code, ENOENT));
+	if (dm_dict.Result_Code) {
+		FD_CHECK(fd_dict_getval(dm_dict.Result_Code, &dm_avp));
+		add_avp_list(dm_avp.avp_name, dm_avp.avp_code, dm_avp.avp_vendor, dm_avp.avp_basetype);
+	}
 	FD_CHECK(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME,
 	      "Error-Message", &dm_dict.Error_Message, ENOENT));
+	if (dm_dict.Error_Message) {
+		FD_CHECK(fd_dict_getval(dm_dict.Error_Message, &dm_avp));
+		add_avp_list(dm_avp.avp_name, dm_avp.avp_code, dm_avp.avp_vendor, dm_avp.avp_basetype);
+	}
 
 	/* accounting AVPs */
 	FD_CHECK(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME,
 	      "Accounting-Record-Type", &dm_dict.Accounting_Record_Type, ENOENT));
+	if (dm_dict.Accounting_Record_Type) {
+		FD_CHECK(fd_dict_getval(dm_dict.Accounting_Record_Type, &dm_avp));
+		add_avp_list(dm_avp.avp_name, dm_avp.avp_code, dm_avp.avp_vendor, dm_avp.avp_basetype);
+	}
 	FD_CHECK(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME,
 	      "Accounting-Record-Number", &dm_dict.Accounting_Record_Number, ENOENT));
+	if (dm_dict.Accounting_Record_Number) {
+		FD_CHECK(fd_dict_getval(dm_dict.Accounting_Record_Number, &dm_avp));
+		add_avp_list(dm_avp.avp_name, dm_avp.avp_code, dm_avp.avp_vendor, dm_avp.avp_basetype);
+	}
 	FD_CHECK(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME,
 	      "Acct-Session-Id", &dm_dict.Acct_Session_Id, ENOENT));
+	if (dm_dict.Acct_Session_Id) {
+		FD_CHECK(fd_dict_getval(dm_dict.Acct_Session_Id, &dm_avp));
+		add_avp_list(dm_avp.avp_name, dm_avp.avp_code, dm_avp.avp_vendor, dm_avp.avp_basetype);
+	}
+
 	FD_CHECK(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME,
 	      "Event-Timestamp", &dm_dict.Event_Timestamp, ENOENT));
+	if (dm_dict.Event_Timestamp) {
+		FD_CHECK(fd_dict_getval(dm_dict.Event_Timestamp, &dm_avp));
+		add_avp_list(dm_avp.avp_name, dm_avp.avp_code, dm_avp.avp_vendor, dm_avp.avp_basetype);
+	}
 
 	/* auth AVPs */
 	FD_CHECK(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME,
 	      "Auth-Application-Id", &dm_dict.Auth_Application_Id, ENOENT));
+	if (dm_dict.Auth_Application_Id) {
+		FD_CHECK(fd_dict_getval(dm_dict.Auth_Application_Id, &dm_avp));
+		add_avp_list(dm_avp.avp_name, dm_avp.avp_code, dm_avp.avp_vendor, dm_avp.avp_basetype);
+	}
 	FD_CHECK(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME,
 	      "Auth-Session-State", &dm_dict.Auth_Session_State, ENOENT));
-	FD_CHECK(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME,
-	      "SIP-AOR", &dm_dict.SIP_AOR, ENOENT));
-	FD_CHECK(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME,
-	      "SIP-Method", &dm_dict.SIP_Method, ENOENT));
+	if (dm_dict.Auth_Session_State) {
+		FD_CHECK(fd_dict_getval(dm_dict.Auth_Session_State, &dm_avp));
+		add_avp_list(dm_avp.avp_name, dm_avp.avp_code, dm_avp.avp_vendor, dm_avp.avp_basetype);
+	}
 
 	FD_CHECK(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME,
-	      "Transaction-Id", &dm_dict.Transaction_Id, ENOENT));
-	FD_CHECK(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME,
 	      "Session-Id", &dm_dict.Session_Id, ENOENT));
+	if (dm_dict.Session_Id) {
+		FD_CHECK(fd_dict_getval(dm_dict.Session_Id, &dm_avp));
+		add_avp_list(dm_avp.avp_name, dm_avp.avp_code, dm_avp.avp_vendor, dm_avp.avp_basetype);
+	}
 	FD_CHECK(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME,
 	      "Route-Record", &dm_dict.Route_Record, ENOENT));
+	if (dm_dict.Route_Record) {
+		FD_CHECK(fd_dict_getval(dm_dict.Route_Record, &dm_avp));
+		add_avp_list(dm_avp.avp_name, dm_avp.avp_code, dm_avp.avp_vendor, dm_avp.avp_basetype);
+	}
+
+	if (dm_register_legacy_dict) {
+		FD_CHECK(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME,
+			"Transaction-Id", &dm_dict.Transaction_Id, ENOENT));
+		if (dm_dict.Transaction_Id) {
+			FD_CHECK(fd_dict_getval(dm_dict.Transaction_Id, &dm_avp));
+			add_avp_list(dm_avp.avp_name, dm_avp.avp_code, dm_avp.avp_vendor, dm_avp.avp_basetype);
+		}	
+
+		FD_CHECK(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME,
+			"SIP-AOR", &dm_dict.SIP_AOR, ENOENT));
+		if (dm_dict.SIP_AOR) {
+			FD_CHECK(fd_dict_getval(dm_dict.SIP_AOR, &dm_avp));
+			add_avp_list(dm_avp.avp_name, dm_avp.avp_code, dm_avp.avp_vendor, dm_avp.avp_basetype);
+		}
+		FD_CHECK(fd_dict_search(fd_g_config->cnf_dict, DICT_AVP, AVP_BY_NAME,
+			"SIP-Method", &dm_dict.SIP_Method, ENOENT));
+		if (dm_dict.SIP_Method) {
+			FD_CHECK(fd_dict_getval(dm_dict.SIP_Method, &dm_avp));
+			add_avp_list(dm_avp.avp_name, dm_avp.avp_code, dm_avp.avp_vendor, dm_avp.avp_basetype);
+		}
+	} 
 
 	return 0;
 }
@@ -640,20 +702,16 @@ void dm_peer_loop(int _)
 		return;
 	}
 
-	LM_ERR("Extra AVP's file: %s\n", extra_avps_file);
-	if (parse_extra_avps(extra_avps_file) != 0) {
-		LM_ERR("failed to load the 'extra-avps-file'\n");
-		return NULL;
-	}
+	LM_DBG("%s:%i: Conf %p Dict: %p\n", __FILE__, __LINE__, fd_g_config, fd_g_config->cnf_dict);
+	__FD_CHECK(dm_prepare_globals(), 0, );
 
 	if (dm_register_legacy_dict) {
 		__FD_CHECK(dm_register_osips_avps(), 0, );
 		__FD_CHECK(dm_init_sip_application(), 0, );		
-		__FD_CHECK(dm_prepare_globals(), 0, );
 	} else {
-		__FD_CHECK(dnr_entry(), 0, );
+/*		__FD_CHECK(dnr_entry(), 0, );
 		__FD_CHECK(dict_dcca_entry(), 0, );
-		__FD_CHECK(dict_dcca_3gpp_entry(), 0, );
+		__FD_CHECK(dict_dcca_3gpp_entry(), 0, ); */
 
 		dm_enc_add(10415, 609, AVP_ENC_TYPE_HEX);
 		dm_enc_add(10415, 610, AVP_ENC_TYPE_HEX);
@@ -662,7 +720,11 @@ void dm_peer_loop(int _)
 		dm_enc_add(10415, 626, AVP_ENC_TYPE_HEX);
 	}
 	
-	__FD_CHECK(parse_extra_avps(extra_avps_file), 0, );
+	LM_DBG("Extra AVP's file: %s\n", extra_avps_file);
+	if (parse_extra_avps(extra_avps_file) != 0) {
+		LM_ERR("failed to load the 'extra-avps-file'\n");
+		return;
+	}
 
 	__FD_CHECK(dm_register_callbacks(), 0, );
 	__FD_CHECK(fd_core_start(), 0, );

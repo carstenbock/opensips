@@ -256,7 +256,7 @@ static inline void parse_qop(struct qp* _q)
  */
 alg_t parse_digest_algorithm(const str *sp)
 {
-
+	
 	switch (sp->len) {
 	CASE_ALG(MD5, sp);
 	CASE_ALG(MD5SESS, sp);

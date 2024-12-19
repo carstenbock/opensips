@@ -29,6 +29,7 @@
 #include "dm_evi.h"
 #include "dm_peer.h"
 #include "diameter_api_impl.h"
+#include "app_opensips/avps.h"
 
 static int mod_init(void);
 static int child_init(int rank);
@@ -174,6 +175,11 @@ int mod_init(void)
 		}
 	}
 
+	if (init_avp_list() != 0) {
+		LM_ERR("failed to init AVP list\n");
+		return -1;
+	}
+
 	return 0;
 }
 
@@ -231,6 +237,8 @@ static void mod_destroy(void)
 	rc = fd_core_shutdown();
 	LM_DBG("libfdcore shutdown, rc: %d\n", rc);
 	dm_destroy();
+
+	free_avp_list();
 }
 
 
