@@ -278,7 +278,7 @@ static void dm_cond_event_resume(int sender, void *param)
 
 static void dm_cond_signal(struct dm_cond *cond)
 {
-	LM_INFO("singalling %p/%d\n", cond, cond->type);
+	LM_DBG("singalling %p/%d\n", cond, cond->type);
 	switch (cond->type) {
 	case DM_TYPE_EVENT:
 		if (ipc_send_rpc(cond->sync.event.pid, dm_cond_event_resume, cond) < 0) {
@@ -1826,7 +1826,7 @@ int dm_build_avps(struct list_head *out_avps, cJSON *array)
 				goto error;
 			}
 		} else {
-			LM_ERR("AVP:: searching AVP by string: %s\n", avp->string);
+			LM_DBG("AVP:: searching AVP by string: %s\n", avp->string);
 
 			if (lookup_avp_name(avp->string, &code, &vendor, &avp_type) != 0) {
 				LM_ERR("AVP:: AVP name %s not found\n", avp->string);
@@ -1834,7 +1834,7 @@ int dm_build_avps(struct list_head *out_avps, cJSON *array)
 			}
 
 			name = avp->string;
-			LM_ERR("AVP:: Checking for Timestamp: %s\n", avp->string);
+			LM_DBG("AVP:: Checking for Timestamp: %s\n", avp->string);
 			if (str_strcasestr(_str(name), _str("Timestamp"))) {
 				LM_DBG("AVP:: %s containts \"Timestamp\"!\n", avp->string);
 				timestamp = 1;

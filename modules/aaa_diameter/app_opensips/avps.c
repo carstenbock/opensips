@@ -51,7 +51,7 @@ extern int dm_store_enumval(const char *name, int value);
 #include "../../../ut.h"
 #include "../../../mem/shm_mem.h"
 #include "../../../dprint.h"
-#define LOG_DBG LM_ERR
+#define LOG_DBG LM_DBG
 #define LOG_ERROR LM_ERR
 #else
 #define LOG_DBG fd_log_debug
@@ -1176,7 +1176,7 @@ int init_avp_list(void) {
 
 int add_avp_list(char *name, unsigned int code, unsigned int vendor, enum dict_avp_basetype avp_type) {
 	if (lookup_avp_name(name, &code, &vendor, &avp_type) == 0) {
-		LM_ERR("AVP %s %d %d %d already exists\n", name, code, vendor, avp_type);
+		LM_DBG("AVP %s %d %d %d already exists\n", name, code, vendor, avp_type);
 		return -1;
 	}
 
@@ -1185,7 +1185,7 @@ int add_avp_list(char *name, unsigned int code, unsigned int vendor, enum dict_a
 		LM_ERR("shm_alloc failed\n");
 		return -1;
 	}
-	LM_ERR("Adding AVP %s %d %d %d\n", name, code, vendor, avp_type);
+	LM_DBG("Adding AVP %s %d %d %d\n", name, code, vendor, avp_type);
 	new_avp->name.len = strlen(name) + 1;
 	new_avp->name.s = shm_malloc(new_avp->name.len);
 	if (!new_avp->name.s) {
