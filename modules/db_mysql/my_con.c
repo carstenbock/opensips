@@ -144,6 +144,14 @@ int db_mysql_connect(struct my_con* ptr)
 			(tls_opts & MY_CON_TLS_CA_DIR) ? ptr->tls_dom->ca_directory:NULL,
 			(tls_opts & MY_CON_TLS_CIPHERS) ? ptr->tls_dom->ciphers_list:NULL);
 	}
+#if (defined LIBMARIADB) || (MYSQL_VERSION_ID < 80000)
+#if (MYSQL_VERSION_ID >= 50700)
+	mysql_options(ptr->con, MYSQL_OPT_SSL_ENFORCE, (void *)&use_tls);
+#endif
+#elif (MYSQL_VERSION_ID < 100000) /* fix error with older MariaDB libs */
+	tls_opts = (use_tls?SSL_MODE_PREFERRED:SSL_MODE_DISABLED);
+	mysql_options(ptr->con, MYSQL_OPT_SSL_MODE, (void *)&tls_opts);
+#endif
 
 	/* set connect, read and write timeout, the value counts three times */
 	mysql_options(ptr->con, MYSQL_OPT_CONNECT_TIMEOUT, (void *)&db_mysql_timeout_interval);
@@ -163,6 +171,9 @@ int db_mysql_connect(struct my_con* ptr)
 	if (ptr->id->port) {
 		LM_DBG("opening connection: mysql://xxxx:xxxx@%s:%d/%s\n",
 			ZSW(ptr->id->host), ptr->id->port, ZSW(ptr->id->database));
+	} else if (ptr->id->unix_socket) {
+		LM_DBG("opening connection: mysql://xxxx:xxxx@unix(%s)/%s\n",
+			ZSW(ptr->id->unix_socket), ZSW(ptr->id->database));
 	} else {
 		LM_DBG("opening connection: mysql://xxxx:xxxx@%s/%s\n",
 			ZSW(ptr->id->host), ZSW(ptr->id->database));
@@ -170,7 +181,7 @@ int db_mysql_connect(struct my_con* ptr)
 
 	if (!mysql_real_connect(ptr->con, ptr->id->host,
 			ptr->id->username, ptr->id->password,
-			ptr->id->database, ptr->id->port, 0,
+			ptr->id->database, ptr->id->port, ptr->id->unix_socket,
 #if (MYSQL_VERSION_ID >= 40100)
 			CLIENT_MULTI_STATEMENTS|CLIENT_REMEMBER_OPTIONS
 #else
