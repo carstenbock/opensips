@@ -118,6 +118,8 @@ static str contact_e = str_init("\t\t</contact>\n");		// 13, but 14
 static str uri_s = str_init("\t\t\t<uri>");
 static str uri_e = str_init("</uri>\n");
 
+static str empty = str_init("");
+
 /*We currently only support certain unknown params to be sent in NOTIFY bodies
  This prevents having compatability issues with UEs including non-standard params in contact header
  Supported params:
@@ -155,6 +157,7 @@ static int inline supported_param(str *param_name)
 
 static void process_xml_for_contact(str_buffer *buffer, ucontact_t *ptr, int expires, str state, str event)
 {
+	param_t *param;	
 	if(ptr->q != -1) {
 		float q = (float)ptr->q / 1000;
 
@@ -172,44 +175,44 @@ static void process_xml_for_contact(str_buffer *buffer, ucontact_t *ptr, int exp
 	str_buffer_append_str(buffer, &ptr->c);
 	str_buffer_append_str(buffer, &uri_e);
 
-	// param = ptr->params;
-	// while(param) {
-	// 	if(supported_param(&param->name) != 0) {
-	// 		param = param->next;
-	// 		continue;
-	// 	}
+	param = ptr->params;
+	while(param) {
+		if(supported_param(&param->name) != 0) {
+			param = param->next;
+			continue;
+		}
 
-	// 	if(param->body.len > 0) {
-	// 		LM_DBG("This contact has params name: [%.*s] body [%.*s]\n",
-	// 				STR_FMT(&param->name), STR_FMT(&param->body));
+		if(param->body.len > 0) {
+			LM_DBG("This contact has params name: [%.*s] body [%.*s]\n",
+				param->name.len, param->name.s, param->body.len, param->body.s);
 
-	// 		if(param->body.s[0] == '<'
-	// 				&& param->body.s[param->body.len - 1] == '>') {
-	// 			str tmp = STR_NULL;
-	// 			LM_DBG("This param body starts with '<' and ends with '>' we "
-	// 				   "will clean these for the NOTIFY XML with &lt; and "
-	// 				   "&gt;\n");
+			if(param->body.s[0] == '<'
+					&& param->body.s[param->body.len - 1] == '>') {
+				str tmp = STR_NULL;
+				LM_DBG("This param body starts with '<' and ends with '>' we "
+					   "will clean these for the NOTIFY XML with &lt; and "
+					   "&gt;\n");
 
-	// 			tmp.len = param->body.len - 2;
-	// 			tmp.s = param->body.s + 1;
+				tmp.len = param->body.len - 2;
+				tmp.s = param->body.s + 1;
 
-	// 			str_buffer_append_str_fmt(buffer, &contact_s_params_with_body_fix,
-	// 					STR_FMT(&param->name), STR_FMT(&tmp));
-	// 		} else {
-	// 			str_buffer_append_str_fmt(buffer, &contact_s_params_with_body,
-	// 					STR_FMT(&param->name), STR_FMT(&empty),
-	// 					STR_FMT(&param->body), STR_FMT(&empty));
-	// 		}
-	// 	} else {
-	// 		LM_DBG("This contact has params name: [%.*s] \n",
-	// 				STR_FMT(&param->name));
+				str_buffer_append_str_fmt(buffer, &contact_s_params_with_body_fix,
+					param->name.len, param->name.s, tmp.len, tmp.s);
+			} else {
+				str_buffer_append_str_fmt(buffer, &contact_s_params_with_body,
+						param->name.len, param->name.s, empty.len, empty.s,
+						param->body.len, param->body.s, empty.len, empty.s);
+			}
+		} else {
+			LM_DBG("This contact has params name: [%.*s] \n",
+					STR_FMT(&param->name));
 
-	// 		str_buffer_append_str_fmt(
-	// 				buffer, &contact_s_params_no_body, STR_FMT(&param->name));
-	// 	}
+			str_buffer_append_str_fmt(
+					buffer, &contact_s_params_no_body, STR_FMT(&param->name));
+		}
 
-	// 	param = param->next;
-	// }
+		param = param->next;
+	}
 
 	str_buffer_append_str(buffer, &contact_e);
 }
