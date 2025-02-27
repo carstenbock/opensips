@@ -227,7 +227,7 @@ cdb_ctdict2info(const cdb_dict_t *ct_fields, str *contact)
 			// params
 			case 'r':
 				if(parse_params(&pair->val.val.st, CLASS_CONTACT, &hooks, &ci.params) < 0) {
-					LM_WARN("Error while parsing parameters: %.*s\n", STR_FMT(&pair->val.val.st));
+					LM_WARN("Error while parsing parameters: %.*s\n", pair->val.val.st.len, pair->val.val.st.s);
 				}
 				break;
 			}
@@ -435,7 +435,7 @@ static inline ucontact_info_t* dbrow2info(db_val_t *vals, str *contact)
 	} else {
 		params.len  = strlen(params.s);
 		if(parse_params(&params, CLASS_CONTACT, &hooks, &ci.params) < 0) {
-			LM_WARN("Error while parsing parameters: %.*s\n", STR_FMT(&params));
+			LM_WARN("Error while parsing parameters: %.*s\n", params.len, params.s);
 		}
 	}
 	
