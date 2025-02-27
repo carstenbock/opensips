@@ -103,11 +103,15 @@ ucontact_info_t *pack_ci(struct sip_msg* _m, contact_t* _c, unsigned int _e,
 		/* set flags */
 		ci.flags  = _f;
 		ci.cflags =  getb0flags(_m);
-
+		
 		/* get received */
 		if (path_received.len && path_received.s) {
 			ci.cflags |= _nat_flag;
 			ci.received = path_received;
+		}
+
+		if(_c->params) {
+			ci.params = _c->params;
 		}
 
 		if (ownership_tag)

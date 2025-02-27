@@ -125,6 +125,7 @@ typedef struct ucontact {
 	const struct socket_info *sock; /*!< received socket */
 	time_t last_modified;   /*!< When the record was last modified */
 	unsigned int methods;   /*!< Supported methods */
+	param_t *params; 		/*!< Params header details> */
 	str attr;               /*!< Additional registration info  */
 	struct proxy_l next_hop;/*!< SIP-wise determined next hop */
 	unsigned short label;   /*!< label to find the contact in contact list>*/
@@ -164,6 +165,7 @@ typedef struct ucontact_info {
 	str *user_agent;
 	const struct socket_info *sock;
 	unsigned int methods;
+	param_t *params;
 	time_t last_modified;
 	str *packed_kv_storage;
 	str *attr;
