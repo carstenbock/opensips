@@ -102,6 +102,8 @@ extern unsigned int ipsec_min_spi;
 extern unsigned int ipsec_max_spi;
 extern int ipsec_tmp_timeout;
 
+extern int ipsec_use_advertised_address;	/* use advertised address for client */
+
 int ipsec_init(void);
 void ipsec_destroy(void);
 struct ipsec_socket *ipsec_sock_new(void);

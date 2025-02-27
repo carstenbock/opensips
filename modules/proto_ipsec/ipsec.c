@@ -28,6 +28,8 @@
 #include "../../dprint.h"
 #include "../../context.h"
 
+int ipsec_use_advertised_address = 0;
+
 /*
  * Socket - IPSec Netlink/MNL socket
  */
@@ -711,7 +713,10 @@ struct ipsec_ctx *ipsec_ctx_new(sec_agree_body_t *sa, struct ip_addr *ip,
 	ctx->alg = alg;
 	ctx->ealg = ealg;
 	/* own information - shortcut */
-	memcpy(&ctx->me.ip, &sc->address, sizeof(struct ip_addr));
+	if (ipsec_use_advertised_address)
+		memcpy(&ctx->me.ip, &sc->adv_address, sizeof(struct ip_addr));
+	else
+		memcpy(&ctx->me.ip, &sc->address, sizeof(struct ip_addr));
 	ctx->me.spi_s = spi_s->spi;
 	ctx->me.spi_c = spi_c->spi;
 	ctx->me.port_s = ss->port_no;

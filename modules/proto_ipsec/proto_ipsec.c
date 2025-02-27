@@ -102,6 +102,7 @@ static const param_export_t params[] = {
 	{ "default_server_port",			INT_PARAM, &ipsec_default_server_port },
 	{ "allowed_algorithms",				STR_PARAM, &ipsec_allowed_algorithms.s },
 	{ "disable_deprecated_algorithms",	INT_PARAM, &ipsec_disable_deprecated_algorithms },
+	{ "use_advertised_address",			INT_PARAM, &ipsec_use_advertised_address },
 	{0, 0, 0}
 };
 
@@ -169,7 +170,7 @@ static struct socket_info *find_ipsec_socket_info(struct ip_addr *ip, unsigned i
 			continue;
 		if (no_port2 && it->socket_info.port_no == no_port2)
 			continue;
-		if (ip && !ip_addr_cmp(ip, &it->socket_info.address))
+		if (ip && !ip_addr_cmp(ip, &it->socket_info.address) && !ip_addr_cmp(ip, &it->socket_info.adv_address))
 			continue;
 		return &it->socket_info;
 	}
@@ -1264,7 +1265,7 @@ static void ipsec_usrloc_restore(ucontact_t *contact)
 	str ck, ik;
 	int spi_pc, spi_ps, port_pc;
 	sec_agree_body_t sa;
-	struct socket_info *sc, *ss;
+	struct socket_info *sc =NULL, *ss;
 	struct ipsec_user *user;
 	struct ipsec_socket *sock;
 	struct ipsec_ctx *ctx;
@@ -1293,7 +1294,10 @@ static void ipsec_usrloc_restore(ucontact_t *contact)
 	sa.ts3gpp.port_s = UL_GET_I(contact, ipsec_usrloc_port_us, "port_us");
 
 	ss = (struct socket_info *)contact->sock;
-	sc = find_ipsec_socket_info(&ss->address, port_pc, 0, 0);
+	if (ipsec_use_advertised_address)
+		sc = find_ipsec_socket_info(&ss->adv_address, port_pc, 0, 0);
+	else
+		sc = find_ipsec_socket_info(&ss->address, port_pc, 0, 0);
 	if (!sc) {
 		LM_INFO("could not find a client listener on %.*s:%d!\n",
 				ss->name.len, ss->name.s, port_pc);
