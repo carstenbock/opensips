@@ -118,8 +118,6 @@ static str contact_e = str_init("\t\t</contact>\n");		// 13, but 14
 static str uri_s = str_init("\t\t\t<uri>");
 static str uri_e = str_init("</uri>\n");
 
-static str empty = str_init("");
-
 /*We currently only support certain unknown params to be sent in NOTIFY bodies
  This prevents having compatability issues with UEs including non-standard params in contact header
  Supported params:
@@ -200,8 +198,8 @@ static void process_xml_for_contact(str_buffer *buffer, ucontact_t *ptr, int exp
 					param->name.len, param->name.s, tmp.len, tmp.s);
 			} else {
 				str_buffer_append_str_fmt(buffer, &contact_s_params_with_body,
-						param->name.len, param->name.s, empty.len, empty.s,
-						param->body.len, param->body.s, empty.len, empty.s);
+						param->name.len, param->name.s, 
+						param->body.len, param->body.s);
 			}
 		} else {
 			LM_DBG("This contact has params name: [%.*s] \n",
